@@ -91,6 +91,36 @@ var GalaxyMenu = Backbone.Model.extend({
         this.masthead.append(tab_shared);
 
         //
+        // APL Sample Tracking menu
+        //
+        var tab_db = new mod_masthead.GalaxyMastheadTab({
+            id : "db",
+            title : "APL Sample Tracking",
+            content : "apl_tracking/sample"
+        });
+        tab_db.add({
+            title : "Samples",
+            content : "apl_tracking/sample"
+        });
+        tab_db.add({
+            title : "Prophecy samples",
+            content : "apl_tracking/prophecy"
+        });
+        tab_db.add({
+            title : "Preps",
+            content : "apl_tracking/prep"
+        });
+        tab_db.add({
+            title : "Runs",
+            content : "apl_tracking/run"
+        });
+        tab_db.add({
+            title : "Primers",
+            content : "apl_tracking/primer"
+        });
+        this.masthead.append(tab_db);
+
+        //
         // Lab menu.
         //
         if (this.options.user.requests)
