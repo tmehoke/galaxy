@@ -2277,3 +2277,113 @@ def init( file_path, url, engine_options={}, create_tables=False, map_install_mo
     # load local galaxy security policy
     result.security_agent = GalaxyRBACAgent( result )
     return result
+
+# --- APL tables --- #
+
+from sqlalchemy import ForeignKeyConstraint, Sequence
+import datetime as dt
+
+model.APLOrganism.table = Table('apl_organism', metadata,
+	Column('id', Integer, Sequence('apl_organism_id_seq'), primary_key=True, nullable=False),
+	Column('taxid', Integer, nullable=False),
+	Column('name', String(255), nullable=False),
+	Column('dbkey', String(15), unique=True)
+	)
+
+mapper(model.APLOrganism, model.APLOrganism.table)
+
+model.APLPrimer.table = Table('apl_primer', metadata,
+	Column('id', Integer, Sequence('apl_primer_id_seq'), primary_key=True, nullable=False),
+	Column('design_date', String(10)),
+	Column('description', String(255), nullable=False),
+	Column('sequence', String(255), nullable=False),
+	Column('species', Integer, ForeignKey('apl_organism.id')),
+	Column('scale', String(255)),
+	Column('purification', String(255)),
+	Column('notes', String(255)),
+	Column('deleted', Boolean, index=True, default=False),
+	Column('user_id', Integer, nullable=False)
+	)
+
+mapper(model.APLPrimer, model.APLPrimer.table)
+
+model.APLSample.table = Table("apl_sample", metadata,
+	Column('id', Integer, Sequence('apl_sample_id_seq'), primary_key=True, nullable=False),
+	Column('parent_id', Integer, ForeignKey('apl_sample.id'), index=True),
+	Column('name', String(100), nullable=False),
+	Column('species', String(15), ForeignKey("apl_organism.dbkey")),
+	Column('host', String(15), ForeignKey("apl_organism.dbkey")),
+	Column('sample_type', String(50)),
+	Column('created', String(10), default=str(dt.date.today())),
+	Column('user_id', Integer, ForeignKey("galaxy_user.id"), index=True, nullable=False),
+	Column('lab', String(100)),
+	Column('project', String(200)),
+	Column('experiment_type', String(200)),
+	Column('notes', TEXT),
+	Column('deleted', Boolean, index=True, default=False)
+	)
+
+mapper(model.APLSample, model.APLSample.table)
+
+model.APLParentChild.table = Table('apl_parent_child', metadata,
+	Column('id', Integer, Sequence('apl_parent_child_id_seq'), primary_key=True, nullable=False),
+	Column('parent_id', Integer, ForeignKey('apl_sample.id'), nullable=False),
+	Column('child_id', Integer, ForeignKey('apl_sample.id'), nullable=False),
+	UniqueConstraint('parent_id', 'child_id')
+	)
+
+mapper(model.APLParentChild, model.APLParentChild.table)
+
+model.APLProphecySample.table = Table("apl_prophecy_sample", metadata,
+	Column('id', Integer, Sequence('apl_prophecy_sample_id_seq'), primary_key=True, nullable=False),
+	Column('sample_id', Integer, ForeignKey('apl_sample.id'), nullable=False), 
+	Column('associated_sample', TEXT),
+	Column('rg_transcribed', String(50)),
+	Column('rg_transfected', String(50)),
+	Column('rg_amplification', String(50)),
+	Column('expt_bulk', String(50)),
+	Column('expt_droplet', String(50)),
+	Column('analysis_tcid50', String(50)),
+	Column('analysis_qpcr', String(50)),
+	Column('rna_isolation', String(50)),
+	Column('analysis_sequencing', String(50)),
+	Column('notes', TEXT),
+	Column('deleted', Boolean, index=True, default=False)
+	)
+
+mapper(model.APLProphecySample, model.APLProphecySample.table)
+
+model.APLPrep.table = Table("apl_prep", metadata,
+	Column('id', Integer, Sequence('apl_prep_id_seq'), primary_key=True, nullable=False),
+	Column('sample_id', Integer, ForeignKey('apl_sample.id'), nullable=False),
+	Column('prep_date', String(10), default=str(dt.date.today())),
+	Column('user_id', Integer, ForeignKey("galaxy_user.id"), index=True),
+	Column('notes', TEXT),
+	Column('deleted', Boolean, index=True, default=False)
+	)
+
+mapper(model.APLPrep, model.APLPrep.table)
+
+model.APLSequencingRun.table = Table('apl_sequencing_run', metadata,
+	Column('id', String(5), primary_key=True, nullable=False),
+	Column('run_date', String(10), nullable=False),
+	Column('user_id', Integer, ForeignKey("galaxy_user.id"), index=True, nullable=False),
+	Column('sequencer_id', String(6), nullable=False),
+	Column('notes', TEXT),
+	Column('deleted', Boolean, index=True, default=False)
+	)
+
+mapper(model.APLSequencingRun, model.APLSequencingRun.table)
+
+model.APLPrepRun.table = Table('apl_prep_run', metadata,
+	Column('id', Integer, Sequence('apl_prep_run_id_seq'), primary_key=True, nullable=False),
+	Column('prep_id', Integer, ForeignKey('apl_prep.id'), nullable=False),
+	Column('flowcell_id', Integer, ForeignKey('apl_sequencing_run.id'), nullable=False),
+	Column('qubit_conc', Integer),
+	Column('volume_loaded', Integer),
+	UniqueConstraint('prep_id', 'flowcell_id')
+	)
+
+mapper(model.APLPrepRun, model.APLPrepRun.table)
+
+# --- end APL tables --- #

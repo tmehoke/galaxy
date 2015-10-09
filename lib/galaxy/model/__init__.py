@@ -4697,3 +4697,151 @@ class APIKeys( object ):
         self.id = id
         self.user_id = user_id
         self.key = key
+
+# --- APL Tables --- #
+
+class APLSample(object):
+	"""	A Sample, a tube in the sequencing lab.
+
+	This class is only used to maintain the Galaxy ORM.
+	Really, this class does nothing for us.
+	Functionality could be added on later, if existing behavior is at any point deemed inadequate
+	"""
+
+	# Is __init__ necessary, with the above? Will it destroy anything to have it here?
+	# This is stupid, but seq must go out of sequence because it is a default argument...
+	def __init__(self, parent_id, name, species, host, sample_type, created, 
+				user_id, lab, project, experiment_type, notes=None):
+
+		# ID column is not given an attribute because sample ID is not known at the time of instantiation
+		# Only after the sample is added to the TABLE is the ID known.
+		self.parent_id = parent_id
+		self.name = name
+		self.species = species
+		self.host = host
+		self.sample_type = sample_type
+		self.created = created
+		self.user_id = user_id
+		self.lab = lab
+		self.project = project
+		self.experiment_type = experiment_type
+		self.notes = notes
+		self.deleted = False
+
+	def __str__(self):
+
+		return "id: %s, name: %s" %(self.id, self.name)
+
+
+class APLParentChild(object):
+	"""	Junction table linking parents to children.
+	"""
+
+	def __init__(self, parent_id, child_id):
+		self.parent_id = parent_id
+		self.child_id = child_id
+
+
+class APLProphecySample(object):
+	"""	Special subclass of sample for the Prophecy project.
+
+	Most attributes correspond to a particular type of experiment or analysis.
+	Typically, input will be "n/a", "completed", etc., but currently there are
+	no strict limits on the input - all Strings will be accepted.
+	"""
+
+	def __init__(self, sample_id, associated_sample, rg_transcribed, rg_transfected, rg_amplification, expt_bulk, expt_droplet, analysis_tcid50,
+				analysis_qpcr, rna_isolation, analysis_sequencing, notes=None):
+		
+		self.sample_id = sample_id
+		self.associated_sample = associated_sample
+		self.rg_transcribed = rg_transcribed
+		self.rg_transfected = rg_transfected
+		self.rg_amplification = rg_amplification
+		self.expt_bulk = expt_bulk
+		self.expt_droplet = expt_droplet
+		self.analysis_tcid50 = analysis_tcid50
+		self.analysis_qpcr = analysis_qpcr
+		self.rna_isolation = rna_isolation
+		self.analysis_sequencing = analysis_sequencing
+		self.notes = notes
+		self.deleted = False
+
+	def __str__(self):
+		return "Prophecy id: %d, Sample id: %d" %(self.id, self.sample_id)
+
+
+class APLPrep(object):
+	"""	Illumina sequencing prep.
+	"""
+
+	def __init__(self, sample_id, prep_date, user_id, notes=None):
+		self.sample_id = sample_id
+		self.prep_date = prep_date
+		self.user_id = user_id
+		self.notes = notes
+		self.deleted = False
+
+	def __str__(self):
+		return "id: %s, sample id: %s" %(self.id, self.sample_id)
+
+
+class APLSequencingRun(object):
+	"""	MiSeq sequencing run.
+	"""
+
+	def __init__(self, run_date, user_id, user, sequencer_id, notes=None):
+		self.run_date = run_date
+		self.user_id = user_id
+		self.sequencer_id = sequencer_id
+		self.notes = notes
+		self.deleted = False
+
+	def __str__(self):
+		return "id: %s" %(self.id)
+
+
+class APLPrepRun(object):
+	"""	Junction table between Illumina preps and sequencing runs.
+	"""
+
+	def __init__(self, prep_id, flowcell_id, qubit_conc, volume_loaded):
+		self.prep_id = prep_id
+		self.flowcell_id = flowcell_id
+		self.qubit_conc = qubit_conc
+		self.volume_loaded = volume_loaded
+
+
+class APLPrimer(object):
+	"""	A primer used for an APLPrep
+	"""
+
+	def __init__(self, design_date, description, sequence, species, scale, purification, user_id, notes=None):
+		self.design_date = design_date
+		self.description = description
+		self.sequence = sequence
+		self.species = species
+		self.scale = scale
+		self.purification = purification
+		self.user_id = user_id
+		self.notes = notes
+		self.deleted = False
+
+	def __str__(self):
+		return "id: %s" %(self.id)
+
+
+class APLOrganism(object):
+	"""	An organism that we have primers or a bowtie2 index for
+	"""
+
+	def __init__(self, taxid, name, dbkey):
+		self.taxid = taxid
+		self.name = name
+		self.dbkey = dbkey
+
+	def __str__(self):
+		return "id: %s" %(self.id)
+
+
+# --- end APL Tables --- #
