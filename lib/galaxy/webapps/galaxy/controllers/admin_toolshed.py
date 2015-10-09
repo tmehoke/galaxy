@@ -189,8 +189,8 @@ class AdminToolshed( AdminGalaxy ):
     def browse_tool_shed( self, trans, **kwd ):
         tool_shed_url = kwd.get( 'tool_shed_url', '' )
         tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, tool_shed_url )
-        galaxy_url = web.url_for( '/', qualified=True )
-        url = common_util.url_join( tool_shed_url, 'repository/browse_valid_categories?galaxy_url=%s' % ( galaxy_url ) )
+        params = dict( galaxy_url=web.url_for( '/', qualified=True ) )
+        url = common_util.url_join( tool_shed_url, pathspec=[ 'repository', 'browse_valid_categories' ], params=params )
         return trans.response.send_redirect( url )
 
     @web.expose
@@ -208,12 +208,12 @@ class AdminToolshed( AdminGalaxy ):
         repository_id = kwd.get( 'id', None )
         repository = repository_util.get_installed_tool_shed_repository( trans.app, repository_id )
         tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, str( repository.tool_shed ) )
-        params = '?galaxy_url=%s&name=%s&owner=%s&changeset_revision=%s' % \
-            ( web.url_for( '/', qualified=True ),
-              str( repository.name ),
-              str( repository.owner ),
-              str( repository.changeset_revision ) )
-        url = common_util.url_join( tool_shed_url, 'repository/check_for_updates%s' % params )
+        params = dict( galaxy_url=web.url_for( '/', qualified=True ),
+                       name=str( repository.name ),
+                       owner=str( repository.owner ),
+                       changeset_revision=str( repository.changeset_revision ) )
+        pathspec = [ 'repository', 'check_for_updates' ]
+        url = common_util.url_join( tool_shed_url, pathspec=pathspec, params=params )
         return trans.response.send_redirect( url )
 
     @web.expose
@@ -228,94 +228,104 @@ class AdminToolshed( AdminGalaxy ):
         but we may choose to do so in the future if it becomes necessary.
         """
         message = escape( kwd.get( 'message', '' ) )
+        statuses = [ None, '' 'info', 'done', 'warning', 'error' ]
         status = kwd.get( 'status', 'done' )
+        if status in statuses:
+            status = statuses.index( status )
+        else:
+            status = 1
         remove_from_disk = kwd.get( 'remove_from_disk', '' )
         remove_from_disk_checked = CheckboxField.is_checked( remove_from_disk )
-        tool_shed_repository = repository_util.get_installed_tool_shed_repository( trans.app, kwd[ 'id' ] )
-        shed_tool_conf, tool_path, relative_install_dir = \
-            suc.get_tool_panel_config_tool_path_install_dir( trans.app, tool_shed_repository )
-        if relative_install_dir:
-            if tool_path:
-                relative_install_dir = os.path.join( tool_path, relative_install_dir )
-            repository_install_dir = os.path.abspath( relative_install_dir )
-        else:
-            repository_install_dir = None
-        errors = ''
-        if kwd.get( 'deactivate_or_uninstall_repository_button', False ):
-            if tool_shed_repository.includes_tools_for_display_in_tool_panel:
-                # Handle tool panel alterations.
-                tpm = tool_panel_manager.ToolPanelManager( trans.app )
-                tpm.remove_repository_contents( tool_shed_repository,
-                                                shed_tool_conf,
-                                                uninstall=remove_from_disk_checked )
-            if tool_shed_repository.includes_data_managers:
-                dmh = data_manager.DataManagerHandler( trans.app )
-                dmh.remove_from_data_manager( tool_shed_repository )
-            if tool_shed_repository.includes_datatypes:
-                # Deactivate proprietary datatypes.
-                cdl = custom_datatype_manager.CustomDatatypeLoader( trans.app )
-                installed_repository_dict = cdl.load_installed_datatypes( tool_shed_repository,
-                                                                          repository_install_dir,
-                                                                          deactivate=True )
-                if installed_repository_dict:
-                    converter_path = installed_repository_dict.get( 'converter_path' )
-                    if converter_path is not None:
-                        cdl.load_installed_datatype_converters( installed_repository_dict, deactivate=True )
-                    display_path = installed_repository_dict.get( 'display_path' )
-                    if display_path is not None:
-                        cdl.load_installed_display_applications( installed_repository_dict, deactivate=True )
-            if remove_from_disk_checked:
-                try:
-                    # Remove the repository from disk.
-                    shutil.rmtree( repository_install_dir )
-                    log.debug( "Removed repository installation directory: %s" % str( repository_install_dir ) )
-                    removed = True
-                except Exception, e:
-                    log.debug( "Error removing repository installation directory %s: %s" % ( str( repository_install_dir ), str( e ) ) )
-                    if isinstance( e, OSError ) and not os.path.exists( repository_install_dir ):
+        tool_shed_repositories = repository_util.get_installed_tool_shed_repository( trans.app, kwd[ 'id' ] )
+        if not isinstance( tool_shed_repositories, list ):
+            tool_shed_repositories = [tool_shed_repositories]
+        for tool_shed_repository in tool_shed_repositories:
+            shed_tool_conf, tool_path, relative_install_dir = \
+                suc.get_tool_panel_config_tool_path_install_dir( trans.app, tool_shed_repository )
+            if relative_install_dir:
+                if tool_path:
+                    relative_install_dir = os.path.join( tool_path, relative_install_dir )
+                repository_install_dir = os.path.abspath( relative_install_dir )
+            else:
+                repository_install_dir = None
+            errors = ''
+            if kwd.get( 'deactivate_or_uninstall_repository_button', False ):
+                if tool_shed_repository.includes_tools_for_display_in_tool_panel:
+                    # Handle tool panel alterations.
+                    tpm = tool_panel_manager.ToolPanelManager( trans.app )
+                    tpm.remove_repository_contents( tool_shed_repository,
+                                                    shed_tool_conf,
+                                                    uninstall=remove_from_disk_checked )
+                if tool_shed_repository.includes_data_managers:
+                    dmh = data_manager.DataManagerHandler( trans.app )
+                    dmh.remove_from_data_manager( tool_shed_repository )
+                if tool_shed_repository.includes_datatypes:
+                    # Deactivate proprietary datatypes.
+                    cdl = custom_datatype_manager.CustomDatatypeLoader( trans.app )
+                    installed_repository_dict = cdl.load_installed_datatypes( tool_shed_repository,
+                                                                              repository_install_dir,
+                                                                              deactivate=True )
+                    if installed_repository_dict:
+                        converter_path = installed_repository_dict.get( 'converter_path' )
+                        if converter_path is not None:
+                            cdl.load_installed_datatype_converters( installed_repository_dict, deactivate=True )
+                        display_path = installed_repository_dict.get( 'display_path' )
+                        if display_path is not None:
+                            cdl.load_installed_display_applications( installed_repository_dict, deactivate=True )
+                if remove_from_disk_checked:
+                    try:
+                        # Remove the repository from disk.
+                        shutil.rmtree( repository_install_dir )
+                        log.debug( "Removed repository installation directory: %s" % str( repository_install_dir ) )
                         removed = True
-                        log.debug( "Repository directory does not exist on disk, marking as uninstalled." )
-                    else:
-                        removed = False
-                if removed:
-                    tool_shed_repository.uninstalled = True
-                    # Remove all installed tool dependencies and tool dependencies stuck in the INSTALLING state, but don't touch any
-                    # repository dependencies.
-                    tool_dependencies_to_uninstall = tool_shed_repository.tool_dependencies_installed_or_in_error
-                    tool_dependencies_to_uninstall.extend( tool_shed_repository.tool_dependencies_being_installed )
-                    for tool_dependency in tool_dependencies_to_uninstall:
-                        uninstalled, error_message = tool_dependency_util.remove_tool_dependency( trans.app, tool_dependency )
-                        if error_message:
-                            errors = '%s  %s' % ( errors, error_message )
-            tool_shed_repository.deleted = True
-            if remove_from_disk_checked:
-                tool_shed_repository.status = trans.install_model.ToolShedRepository.installation_status.UNINSTALLED
-                tool_shed_repository.error_message = None
-                if trans.app.config.manage_dependency_relationships:
-                    # Remove the uninstalled repository and any tool dependencies from the in-memory dictionaries in the
-                    # installed_repository_manager.
-                    trans.app.installed_repository_manager.handle_repository_uninstall( tool_shed_repository )
-            else:
-                tool_shed_repository.status = trans.install_model.ToolShedRepository.installation_status.DEACTIVATED
-            trans.install_model.context.add( tool_shed_repository )
-            trans.install_model.context.flush()
-            if remove_from_disk_checked:
-                message = 'The repository named <b>%s</b> has been uninstalled.  ' % escape( tool_shed_repository.name )
-                if errors:
-                    message += 'Attempting to uninstall tool dependencies resulted in errors: %s' % errors
-                    status = 'error'
+                    except Exception, e:
+                        log.debug( "Error removing repository installation directory %s: %s" % ( str( repository_install_dir ), str( e ) ) )
+                        if isinstance( e, OSError ) and not os.path.exists( repository_install_dir ):
+                            removed = True
+                            log.debug( "Repository directory does not exist on disk, marking as uninstalled." )
+                        else:
+                            removed = False
+                    if removed:
+                        tool_shed_repository.uninstalled = True
+                        # Remove all installed tool dependencies and tool dependencies stuck in the INSTALLING state, but don't touch any
+                        # repository dependencies.
+                        tool_dependencies_to_uninstall = tool_shed_repository.tool_dependencies_installed_or_in_error
+                        tool_dependencies_to_uninstall.extend( tool_shed_repository.tool_dependencies_being_installed )
+                        for tool_dependency in tool_dependencies_to_uninstall:
+                            uninstalled, error_message = tool_dependency_util.remove_tool_dependency( trans.app, tool_dependency )
+                            if error_message:
+                                errors = '%s  %s' % ( errors, error_message )
+                tool_shed_repository.deleted = True
+                if remove_from_disk_checked:
+                    tool_shed_repository.status = trans.install_model.ToolShedRepository.installation_status.UNINSTALLED
+                    tool_shed_repository.error_message = None
+                    if trans.app.config.manage_dependency_relationships:
+                        # Remove the uninstalled repository and any tool dependencies from the in-memory dictionaries in the
+                        # installed_repository_manager.
+                        trans.app.installed_repository_manager.handle_repository_uninstall( tool_shed_repository )
                 else:
-                    status = 'done'
-            else:
-                message = 'The repository named <b>%s</b> has been deactivated.  ' % escape( tool_shed_repository.name )
-                status = 'done'
+                    tool_shed_repository.status = trans.install_model.ToolShedRepository.installation_status.DEACTIVATED
+                trans.install_model.context.add( tool_shed_repository )
+                trans.install_model.context.flush()
+                if remove_from_disk_checked:
+                    message += 'The repository named <b>%s</b> has been uninstalled.  ' % escape( tool_shed_repository.name )
+                    if errors:
+                        message += 'Attempting to uninstall tool dependencies resulted in errors: %s' % errors
+                        status = max( status, statuses.index( 'error' ) )
+                    else:
+                        status = max( status, statuses.index( 'done' ) )
+                else:
+                    message = 'The repository named <b>%s</b> has been deactivated.  ' % escape( tool_shed_repository.name )
+                    status = max( status, statuses.index( 'done' ) )
+        status = statuses[ status ]
+        if kwd.get( 'deactivate_or_uninstall_repository_button', False ):
             return trans.response.send_redirect( web.url_for( controller='admin_toolshed',
                                                               action='browse_repositories',
                                                               message=message,
                                                               status=status ) )
         remove_from_disk_check_box = CheckboxField( 'remove_from_disk', checked=remove_from_disk_checked )
         return trans.fill_template( '/admin/tool_shed_repository/deactivate_or_uninstall_repository.mako',
-                                    repository=tool_shed_repository,
+                                    repository=tool_shed_repositories,
                                     remove_from_disk_check_box=remove_from_disk_check_box,
                                     message=message,
                                     status=status )
@@ -359,8 +369,8 @@ class AdminToolshed( AdminGalaxy ):
     def find_tools_in_tool_shed( self, trans, **kwd ):
         tool_shed_url = kwd.get( 'tool_shed_url', '' )
         tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, tool_shed_url )
-        galaxy_url = web.url_for( '/', qualified=True )
-        url = common_util.url_join( tool_shed_url, 'repository/find_tools?galaxy_url=%s' % galaxy_url )
+        params = dict( galaxy_url=web.url_for( '/', qualified=True ) )
+        url = common_util.url_join( tool_shed_url, pathspec=[ 'repository', 'find_tools' ], params=params )
         return trans.response.send_redirect( url )
 
     @web.expose
@@ -368,8 +378,8 @@ class AdminToolshed( AdminGalaxy ):
     def find_workflows_in_tool_shed( self, trans, **kwd ):
         tool_shed_url = kwd.get( 'tool_shed_url', '' )
         tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, tool_shed_url )
-        galaxy_url = web.url_for( '/', qualified=True )
-        url = common_util.url_join( tool_shed_url, 'repository/find_workflows?galaxy_url=%s' % galaxy_url )
+        params = dict( galaxy_url=web.url_for( '/', qualified=True ) )
+        url = common_util.url_join( tool_shed_url, pathspec=[ 'repository', 'find_workflows' ], params=params )
         return trans.response.send_redirect( url )
 
     @web.expose
@@ -402,10 +412,9 @@ class AdminToolshed( AdminGalaxy ):
             message += "parameters is None: tool_shed_url: %s, repository_name: %s, repository_owner: %s, changeset_revision: %s " % \
                 ( str( tool_shed_url ), str( repository_name ), str( repository_owner ), str( changeset_revision ) )
             raise Exception( message )
-        params = '?name=%s&owner=%s&changeset_revision=%s' % ( repository_name, repository_owner, changeset_revision )
-        url = common_util.url_join( tool_shed_url,
-                                    'repository/get_tool_dependencies%s' % params )
-        raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+        params = dict( name=repository_name, owner=repository_owner, changeset_revision=changeset_revision )
+        pathspec = [ 'repository', 'get_tool_dependencies' ]
+        raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
         if len( raw_text ) > 2:
             encoded_text = json.loads( raw_text )
             text = encoding_util.tool_shed_decode( encoded_text )
@@ -427,12 +436,11 @@ class AdminToolshed( AdminGalaxy ):
             message += "required parameters is None: tool_shed_url: %s, repository_name: %s, repository_owner: %s, changeset_revision: %s " % \
                 ( str( tool_shed_url ), str( repository_name ), str( repository_owner ), str( changeset_revision ) )
             raise Exception( message )
-        params = '?name=%s&owner=%s&changeset_revision=%s' % ( str( repository_name ),
-                                                               str( repository_owner ),
-                                                               changeset_revision )
-        url = common_util.url_join( tool_shed_url,
-                                    'repository/get_updated_repository_information%s' % params )
-        raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+        params = dict( name=str( repository_name ),
+                       owner=str( repository_owner ),
+                       changeset_revision=changeset_revision )
+        pathspec = [ 'repository', 'get_updated_repository_information' ]
+        raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
         repo_information_dict = json.loads( raw_text )
         return repo_information_dict
 
@@ -518,10 +526,12 @@ class AdminToolshed( AdminGalaxy ):
                 tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, str( repository.tool_shed ) )
                 name = str( repository.name )
                 owner = str( repository.owner )
-                params = '?galaxy_url=%s&name=%s&owner=%s' % ( web.url_for( '/', qualified=True ), name, owner )
-                url = common_util.url_join( tool_shed_url,
-                                            'repository/get_latest_downloadable_changeset_revision%s' % params )
-                raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+                params = dict( galaxy_url=web.url_for( '/', qualified=True ),
+                               name=name,
+                               owner=owner )
+                pathspec = [ 'repository', 'get_latest_downloadable_changeset_revision' ]
+                raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
+                url = common_util.url_join( tool_shed_url, pathspec=pathspec, params=params )
                 latest_downloadable_revision = json.loads( raw_text )
                 if latest_downloadable_revision == hg_util.INITIAL_CHANGELOG_HASH:
                     message = 'Error retrieving the latest downloadable revision for this repository via the url <b>%s</b>.' % url
@@ -532,7 +542,7 @@ class AdminToolshed( AdminGalaxy ):
                     # appropriate repository revision if one exists.  We need to create a temporary repo_info_tuple
                     # with the following entries to handle this.
                     # ( description, clone_url, changeset_revision, ctx_rev, owner, repository_dependencies, tool_dependencies )
-                    tmp_clone_url = common_util.url_join( tool_shed_url, 'repos', owner, name )
+                    tmp_clone_url = common_util.url_join( tool_shed_url, pathspec=[ 'repos', owner, name ] )
                     tmp_repo_info_tuple = ( None, tmp_clone_url, latest_downloadable_revision, None, owner, None, None )
                     installed_repository, installed_changeset_revision = \
                         suc.repository_was_previously_installed( trans.app, tool_shed_url, name, tmp_repo_info_tuple, from_tip=False )
@@ -545,12 +555,12 @@ class AdminToolshed( AdminGalaxy ):
                         status = 'error'
                     else:
                         # Install the latest downloadable revision of the repository.
-                        params = '?name=%s&owner=%s&changeset_revisions=%s&galaxy_url=%s' % ( name,
-                                                                                              owner,
-                                                                                              str( latest_downloadable_revision ),
-                                                                                              web.url_for( '/', qualified=True ) )
-                        url = common_util.url_join( tool_shed_url,
-                                                    'repository/install_repositories_by_revision%s' % params )
+                        params = dict( name=name,
+                                       owner=owner,
+                                       changeset_revisions=str( latest_downloadable_revision ),
+                                       galaxy_url=web.url_for( '/', qualified=True ) )
+                        pathspec = [ 'repository', 'install_repositories_by_revision' ]
+                        url = common_util.url_join( tool_shed_url, pathspec=pathspec, params=params )
                         return trans.response.send_redirect( url )
             else:
                 message = 'Cannot locate installed tool shed repository with encoded id <b>%s</b>.' % str( repository_id )
@@ -713,12 +723,12 @@ class AdminToolshed( AdminGalaxy ):
                                                               tool_shed_repository_ids=tool_shed_repository_ids ) )
         if repository.can_install and operation == 'install':
             # Send a request to the tool shed to install the repository.
-            params = '?name=%s&owner=%s&changeset_revisions=%s&galaxy_url=%s' % ( name,
-                                                                                  owner,
-                                                                                  installed_changeset_revision,
-                                                                                  web.url_for( '/', qualified=True ) )
-            url = common_util.url_join( tool_shed_url,
-                                        'repository/install_repositories_by_revision%s' % params )
+            params = dict( name=name,
+                           owner=owner,
+                           changeset_revisions=installed_changeset_revision,
+                           galaxy_url=web.url_for( '/', qualified=True ) )
+            pathspec = [ 'repository', 'install_repositories_by_revision' ]
+            url = common_util.url_join( tool_shed_url, pathspec=pathspec, params=params )
             return trans.response.send_redirect( url )
         description = kwd.get( 'description', repository.description )
         shed_tool_conf, tool_path, relative_install_dir = suc.get_tool_panel_config_tool_path_install_dir( trans.app, repository )
@@ -971,10 +981,9 @@ class AdminToolshed( AdminGalaxy ):
                 repository = suc.get_tool_shed_repository_by_id( trans.app, updating_repository_id )
                 # For backward compatibility to the 12/20/12 Galaxy release.
                 try:
-                    params = '?name=%s&owner=%s' % ( str( repository.name ), str( repository.owner ) )
-                    url = common_util.url_join( tool_shed_url,
-                                                'repository/get_repository_id%s' % params )
-                    repository_ids = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+                    params = dict( name=str( repository.name ), owner=str( repository.owner ) )
+                    pathspec = [ 'repository', 'get_repository_id' ]
+                    repository_ids = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
                 except Exception, e:
                     # The Tool Shed cannot handle the get_repository_id request, so the code must be older than the
                     # 04/2014 Galaxy release when it was introduced.  It will be safest to error out and let the
@@ -992,10 +1001,9 @@ class AdminToolshed( AdminGalaxy ):
             else:
                 changeset_revisions = kwd.get( 'changeset_revisions', None )
             # Get the information necessary to install each repository.
-            params = '?repository_ids=%s&changeset_revisions=%s' % ( str( repository_ids ), str( changeset_revisions ) )
-            url = common_util.url_join( tool_shed_url,
-                                        'repository/get_repository_information%s' % params )
-            raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+            params = dict( repository_ids=str( repository_ids ), changeset_revisions=str( changeset_revisions ) )
+            pathspec = [ 'repository', 'get_repository_information' ]
+            raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
             repo_information_dict = json.loads( raw_text )
             for encoded_repo_info_dict in repo_information_dict.get( 'repo_info_dicts', [] ):
                 decoded_repo_info_dict = encoding_util.tool_shed_decode( encoded_repo_info_dict )
@@ -1524,12 +1532,11 @@ class AdminToolshed( AdminGalaxy ):
                 if 'workflows' in metadata:
                     includes_workflows = True
                 # Since we're reinstalling, we need to send a request to the tool shed to get the README files.
-                params = '?name=%s&owner=%s&changeset_revision=%s' % ( str( tool_shed_repository.name ),
-                                                                       str( tool_shed_repository.owner ),
-                                                                       str( tool_shed_repository.installed_changeset_revision ) )
-                url = common_util.url_join( tool_shed_url,
-                                            'repository/get_readme_files%s' % params )
-                raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+                params = dict( name=tool_shed_repository.name,
+                               owner=tool_shed_repository.owner,
+                               changeset_revision=tool_shed_repository.installed_changeset_revision )
+                pathspec = [ 'repository', 'get_readme_files' ]
+                raw_text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
                 readme_files_dict = json.loads( raw_text )
                 tool_dependencies = metadata.get( 'tool_dependencies', None )
             rdim = repository_dependency_manager.RepositoryDependencyInstallManager( trans.app )
@@ -1728,12 +1735,9 @@ class AdminToolshed( AdminGalaxy ):
         """
         repository = repository_util.get_installed_tool_shed_repository( trans.app, kwd[ 'id' ] )
         tool_shed_url = common_util.get_tool_shed_url_from_tool_shed_registry( trans.app, str( repository.tool_shed ) )
-        params = '?name=%s&owner=%s&changeset_revision=%s' % ( str( repository.name ),
-                                                               str( repository.owner ),
-                                                               str( repository.changeset_revision ) )
-        url = common_util.url_join( tool_shed_url,
-                                    'repository/get_tool_versions%s' % params )
-        text = common_util.tool_shed_get( trans.app, tool_shed_url, url )
+        params = dict( name=repository.name, owner=repository.owner, changeset_revision=repository.changeset_revision )
+        pathspec = [ 'repository', 'get_tool_versions' ]
+        text = common_util.tool_shed_get( trans.app, tool_shed_url, pathspec=pathspec, params=params )
         if text:
             tool_version_dicts = json.loads( text )
             tvm = tool_version_manager.ToolVersionManager( trans.app )
@@ -1840,11 +1844,11 @@ class AdminToolshed( AdminGalaxy ):
         changeset_revision = kwd.get( 'changeset_revision', None )
         latest_changeset_revision = kwd.get( 'latest_changeset_revision', None )
         latest_ctx_rev = kwd.get( 'latest_ctx_rev', None )
-        repository = suc.get_tool_shed_repository_by_shed_name_owner_changeset_revision( trans.app,
-                                                                                         tool_shed_url,
-                                                                                         name,
-                                                                                         owner,
-                                                                                         changeset_revision )
+        repository = suc.get_installed_repository( trans.app,
+                                                   tool_shed=tool_shed_url,
+                                                   name=name,
+                                                   owner=owner,
+                                                   changeset_revision=changeset_revision )
         original_metadata_dict = repository.metadata
         original_repository_dependencies_dict = original_metadata_dict.get( 'repository_dependencies', {} )
         original_repository_dependencies = original_repository_dependencies_dict.get( 'repository_dependencies', [] )

@@ -85,6 +85,23 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
     valid_category_grid = repository_grids.ValidCategoryGrid()
     valid_repository_grid = repository_grids.ValidRepositoryGrid()
 
+    def _redirect_if_necessary( self, trans, **kwd ):
+        if 'operation' in kwd:
+            operation = kwd[ 'operation' ].lower()
+            if operation == "view_or_manage_repository":
+                return trans.response.send_redirect( web.url_for( controller='repository',
+                                                                  action='view_or_manage_repository',
+                                                                  **kwd ) )
+            elif operation == "repositories_by_user":
+                return trans.response.send_redirect( web.url_for( controller='repository',
+                                                                  action='browse_repositories_by_user',
+                                                                  **kwd ) )
+            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
+                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
+                return trans.response.send_redirect( web.url_for( controller='repository',
+                                                                  action='deprecate',
+                                                                  **kwd ) )
+
     @web.expose
     def browse_categories( self, trans, **kwd ):
         # The request came from the tool shed.
@@ -157,21 +174,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         selected_changeset_revision, repository = suc.get_repository_from_refresh_on_change( trans.app, **kwd )
         if repository:
             return trans.response.send_redirect( web.url_for( controller='repository',
@@ -183,21 +189,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_missing_tool_test_components( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -211,21 +206,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_with_failing_tool_tests( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -241,21 +225,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_with_invalid_tools( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -269,21 +242,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_with_no_failing_tool_tests( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -298,21 +260,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_with_install_errors( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -327,21 +278,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_my_writable_repositories_with_skip_tool_test_checked( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -454,21 +394,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_i_can_administer( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         selected_changeset_revision, repository = suc.get_repository_from_refresh_on_change( trans.app, **kwd )
         if repository:
             return trans.response.send_redirect( web.url_for( controller='repository',
@@ -480,21 +409,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_i_own( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         selected_changeset_revision, repository = suc.get_repository_from_refresh_on_change( trans.app, **kwd )
         if repository:
             return trans.response.send_redirect( web.url_for( controller='repository',
@@ -548,21 +466,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_missing_tool_test_components( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -575,21 +482,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_with_failing_tool_tests( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -603,21 +499,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_with_install_errors( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -631,21 +516,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_with_invalid_tools( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -658,21 +532,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_with_no_failing_tool_tests( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -686,21 +549,10 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
 
     @web.expose
     def browse_repositories_with_skip_tool_test_checked( self, trans, **kwd ):
-        if 'operation' in kwd:
-            operation = kwd[ 'operation' ].lower()
-            if operation == "view_or_manage_repository":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='view_or_manage_repository',
-                                                                  **kwd ) )
-            elif operation == "repositories_by_user":
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='browse_repositories_by_user',
-                                                                  **kwd ) )
-            elif operation in [ 'mark as deprecated', 'mark as not deprecated' ]:
-                kwd[ 'mark_deprecated' ] = operation == 'mark as deprecated'
-                return trans.response.send_redirect( web.url_for( controller='repository',
-                                                                  action='deprecate',
-                                                                  **kwd ) )
+        _redir = self._redirect_if_necessary( trans, **kwd )
+        if _redir is not None:
+            return _redir
+
         if 'message' not in kwd:
             message = 'This list contains repositories that match the following criteria:<br>'
             message += '<ul>'
@@ -902,13 +754,11 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
             no_update = 'false'
         elif galaxy_url:
             # Start building up the url to redirect back to the calling Galaxy instance.
-            params = '?tool_shed_url=%s&name=%s&owner=%s&changeset_revision=%s&latest_changeset_revision=' % \
-                ( web.url_for( '/', qualified=True ),
-                  str( repository.name ),
-                  str( repository.user.username ),
-                  changeset_revision )
-            url = common_util.url_join( galaxy_url,
-                                        'admin_toolshed/update_to_changeset_revision%s' % params )
+            params = dict( tool_shed_url=web.url_for( '/', qualified=True ),
+                           name=str( repository.name ),
+                           owner=str( repository.user.username ),
+                           changeset_revision=changeset_revision )
+            pathspec = [ 'admin_toolshed', 'update_to_changeset_revision' ]
         else:
             message = 'Unable to check for updates due to an invalid Galaxy URL: <b>%s</b>.  ' % galaxy_url
             message += 'You may need to enable third-party cookies in your browser.  '
@@ -918,7 +768,6 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
             if from_update_manager:
                 return no_update
             # Return the same value for changeset_revision and latest_changeset_revision.
-            url += latest_changeset_revision
         else:
             repository_metadata = suc.get_repository_metadata_by_changeset_revision( trans.app,
                                                                                      trans.security.encode_id( repository.id ),
@@ -928,9 +777,7 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
                 # additional updates.
                 if from_update_manager:
                     return no_update
-                else:
-                    # Return the same value for changeset_revision and latest_changeset_revision.
-                    url += latest_changeset_revision
+                # Return the same value for changeset_revision and latest_changeset_revision.
             else:
                 # The changeset_revision column in the repository_metadata table has been updated with a new
                 # changeset_revision value since the repository was installed.  We need to find the changeset_revision
@@ -963,8 +810,9 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
                     if latest_changeset_revision == changeset_revision:
                         return no_update
                     return update
-                url += str( latest_changeset_revision )
-        url += '&latest_ctx_rev=%s' % str( update_to_ctx.rev() )
+        params['latest_changeset_revision'] = str( latest_changeset_revision )
+        params['latest_ctx_rev'] = str( update_to_ctx.rev() )
+        url = common_util.url_join( galaxy_url, pathspec=pathspec, params=params )
         return trans.response.send_redirect( url )
 
     @web.expose
@@ -1219,12 +1067,8 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
         trans.sa_session.add( repository )
         trans.sa_session.flush()
         tool_shed_url = web.url_for( '/', qualified=True )
-        download_url = common_util.url_join( tool_shed_url,
-                                             'repos',
-                                             str( repository.user.username ),
-                                             str( repository.name ),
-                                             'archive',
-                                             file_type_str )
+        pathspec = [ 'repos', str( repository.user.username ), str( repository.name ), 'archive', file_type_str ]
+        download_url = common_util.url_join( tool_shed_url, pathspec=pathspec )
         return trans.response.send_redirect( download_url )
 
     @web.expose
@@ -1649,16 +1493,16 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
             # Return only metadata revisions where tools_functionally_correct is set to True.
             metadata_filter = and_( trans.model.RepositoryMetadata.table.c.includes_tools == true(),
                                     trans.model.RepositoryMetadata.table.c.tools_functionally_correct == true(),
-                                    trans.model.RepositoryMetadata.table.c.time_last_tested is not None )
+                                    trans.model.RepositoryMetadata.table.c.time_last_tested != null() )
         elif status == 'failed':
             # Return only metadata revisions where tools_functionally_correct is set to False.
             metadata_filter = and_( trans.model.RepositoryMetadata.table.c.includes_tools == true(),
                                     trans.model.RepositoryMetadata.table.c.tools_functionally_correct == false(),
-                                    trans.model.RepositoryMetadata.table.c.time_last_tested is not None )
+                                    trans.model.RepositoryMetadata.table.c.time_last_tested != null() )
         else:
             # Return all metadata entries for this user's repositories.
             metadata_filter = and_( trans.model.RepositoryMetadata.table.c.includes_tools == true(),
-                                    trans.model.RepositoryMetadata.table.c.time_last_tested is not None )
+                                    trans.model.RepositoryMetadata.table.c.time_last_tested != null() )
 
         tool_shed_url = web.url_for( '/', qualified=True )
         functional_test_results = []
@@ -1692,11 +1536,8 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
                     else:
                         time_tested = repository_metadata.time_last_tested.strftime( '%a, %d %b %Y %H:%M:%S UT' )
                     # Generate a citable URL for this repository with owner and changeset revision.
-                    repository_citable_url = common_util.url_join( tool_shed_url,
-                                                                   'view',
-                                                                   str( user.username ),
-                                                                   str( repository.name ),
-                                                                   str( repository_metadata.changeset_revision ) )
+                    pathspec = [ 'view', str( user.username ), str( repository.name ), str( repository_metadata.changeset_revision ) ]
+                    repository_citable_url = common_util.url_join( tool_shed_url, pathspec=pathspec )
                     passed_tests = len( tool_test_results.get( 'passed_tests', [] ) )
                     failed_tests = len( tool_test_results.get( 'failed_tests', [] ) )
                     missing_test_components = len( tool_test_results.get( 'missing_test_components', [] ) )
@@ -2132,12 +1973,11 @@ class RepositoryController( BaseUIController, ratings_util.ItemRatings ):
         galaxy_url = common_util.handle_galaxy_url( trans, **kwd )
         if galaxy_url:
             # Redirect back to local Galaxy to perform install.
-            params = '?tool_shed_url=%s&repository_ids=%s&changeset_revisions=%s' % \
-                ( web.url_for( '/', qualified=True ),
-                  ','.join( util.listify( repository_ids ) ),
-                  ','.join( util.listify( changeset_revisions ) ) )
-            url = common_util.url_join( galaxy_url,
-                                        'admin_toolshed/prepare_for_install%s' % params )
+            params = dict( tool_shed_url=web.url_for( '/', qualified=True ),
+                           repository_ids=','.join( util.listify( repository_ids ) ),
+                           changeset_revisions=','.join( util.listify( changeset_revisions ) ) )
+            pathspec = [ 'admin_toolshed', 'prepare_for_install' ]
+            url = common_util.url_join( galaxy_url, pathspec=pathspec, params=params )
             return trans.response.send_redirect( url )
         else:
             message = 'Repository installation is not possible due to an invalid Galaxy URL: <b>%s</b>.  ' % galaxy_url

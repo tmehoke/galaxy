@@ -120,6 +120,9 @@ class HDAManager( datasets.DatasetAssociationManager,
         copy.copied_from_history_dataset_association = hda
         copy.set_size()
 
+        original_annotation = self.annotation( hda )
+        self.annotate( copy, original_annotation, user=history.user )
+
         # TODO: update from kwargs?
 
         # Need to set after flushed, as MetadataFiles require dataset.id
@@ -132,6 +135,11 @@ class HDAManager( datasets.DatasetAssociationManager,
             copy.set_peek()
 
         self.session().flush()
+
+        # these use a second session flush and need to be after the first
+        original_tags = self.get_tags( hda )
+        self.set_tags( copy, original_tags, user=history.user )
+
         return copy
 
     def copy_ldda( self, history, ldda, **kwargs ):
@@ -225,6 +233,11 @@ class HDAManager( datasets.DatasetAssociationManager,
         hda_data = open( hda.file_name ).read( MAX_PEEK_SIZE )
         return truncated, hda_data
 
+    # .... annotatable
+    def annotation( self, hda ):
+        # override to scope to history owner
+        return self._user_annotation( hda, hda.history.user )
+
 
 class HDASerializer(  # datasets._UnflattenedMetadataDatasetAssociationSerializer,
         datasets.DatasetAssociationSerializer,
@@ -265,6 +278,9 @@ class HDASerializer(  # datasets._UnflattenedMetadataDatasetAssociationSerialize
             'resubmitted',
             'metadata', 'meta_files', 'data_type',
             'peek',
+
+            'creating_job',
+            'rerunnable',
 
             'uuid',
             'permissions',
@@ -312,7 +328,6 @@ class HDASerializer(  # datasets._UnflattenedMetadataDatasetAssociationSerialize
             'file_path'     : self._remap_from( 'file_name' ),
 
             'resubmitted'   : lambda i, k, **c: self.hda_manager.has_been_resubmitted( i ),
-
             'display_apps'  : self.serialize_display_apps,
             'display_types' : self.serialize_old_display_applications,
             'visualizations': self.serialize_visualization_links,

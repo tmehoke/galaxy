@@ -19,20 +19,25 @@ from string import Template
 from uuid import UUID, uuid4
 
 from galaxy import eggs
-eggs.require("pexpect")
-import pexpect
 eggs.require('SQLAlchemy')
-from sqlalchemy import and_, func, not_, or_, true
-from sqlalchemy.orm import joinedload, object_session
+from sqlalchemy import and_, func, not_, or_, true, join, select
+from sqlalchemy.orm import joinedload, object_session, aliased
+from sqlalchemy.ext import hybrid
+
+try:
+    import pexpect
+except ImportError:
+    pexpect = None
 
 import galaxy.datatypes
 import galaxy.datatypes.registry
+import galaxy.model.orm.now
 import galaxy.security.passwords
+import galaxy.util
 from galaxy.datatypes.metadata import MetadataCollection
 from galaxy.model.item_attrs import Dictifiable, UsesAnnotations
-import galaxy.model.orm.now
 from galaxy.security import get_permitted_actions
-from galaxy.util import is_multi_byte, nice_size, Params, restore_text, send_mail
+from galaxy.util import is_multi_byte, Params, restore_text, send_mail
 from galaxy.util import ready_name_for_url, unique_id
 from galaxy.util.bunch import Bunch
 from galaxy.util.hash_util import new_secure_hash
@@ -54,6 +59,9 @@ datatypes_registry.load_datatypes()
 # are going to have different limits so it is likely best to not let
 # this be unlimited - filter in Python if over this limit.
 MAX_IN_FILTER_LENGTH = 100
+
+PEXPECT_IMPORT_MESSAGE = ('The Python pexpect package is required to use this '
+                          'feature, please install it')
 
 
 class NoConverterException(Exception):
@@ -185,7 +193,7 @@ class User( object, Dictifiable ):
         if self.disk_usage is not None:
             rval = self.disk_usage
         if nice_size:
-            rval = galaxy.datatypes.data.nice_size( rval )
+            rval = galaxy.util.nice_size( rval )
         return rval
 
     def set_disk_usage( self, bytes ):
@@ -271,7 +279,7 @@ class PasswordResetToken( object ):
         else:
             self.token = unique_id()
         self.user = user
-        self.expiration_time = datetime.now() + timedelta(hours=24)
+        self.expiration_time = galaxy.model.orm.now.now() + timedelta(hours=24)
 
 
 class BaseJobMetric( object ):
@@ -320,6 +328,9 @@ class Job( object, HasJobMetrics, Dictifiable ):
                     PAUSED='paused',
                     DELETED='deleted',
                     DELETED_NEW='deleted_new' )
+    terminal_states = [ states.OK,
+                        states.ERROR,
+                        states.DELETED ]
 
     # Please include an accessor (get/set pair) for any new columns/members.
     def __init__( self ):
@@ -1185,7 +1196,7 @@ class History( object, Dictifiable, UsesAnnotations, HasName ):
         rval[ 'tags' ] = tags_str_list
 
         if view == 'element':
-            rval[ 'size' ] = int( self.get_disk_size() )
+            rval[ 'size' ] = int( self.disk_size )
 
         return rval
 
@@ -1193,10 +1204,6 @@ class History( object, Dictifiable, UsesAnnotations, HasName ):
     def latest_export( self ):
         exports = self.exports
         return exports and exports[ 0 ]
-
-    @property
-    def get_disk_size_bytes( self ):
-        return self.get_disk_size( nice_size=False )
 
     def unhide_datasets( self ):
         for dataset in self.datasets:
@@ -1208,20 +1215,65 @@ class History( object, Dictifiable, UsesAnnotations, HasName ):
             if job is not None and job.state == Job.states.PAUSED:
                 job.set_state(Job.states.NEW)
 
-    def get_disk_size( self, nice_size=False ):
-        # unique datasets only
+    @hybrid.hybrid_property
+    def disk_size( self ):
+        """
+        Return the size in bytes of this history by summing the 'total_size's of
+        all non-purged, unique datasets within it.
+        """
+        # non-.expression part of hybrid.hybrid_property: called when an instance is the namespace (not the class)
         db_session = object_session( self )
         rval = db_session.query(
             func.sum( db_session.query( HistoryDatasetAssociation.dataset_id, Dataset.total_size ).join( Dataset )
                     .filter( HistoryDatasetAssociation.table.c.history_id == self.id )
                     .filter( HistoryDatasetAssociation.purged != true() )
                     .filter( Dataset.purged != true() )
+                    # unique datasets only
                     .distinct().subquery().c.total_size ) ).first()[0]
         if rval is None:
             rval = 0
-        if nice_size:
-            rval = galaxy.datatypes.data.nice_size( rval )
         return rval
+
+    @disk_size.expression
+    def disk_size( cls ):
+        """
+        Return a query scalar that will get any history's size in bytes by summing
+        the 'total_size's of all non-purged, unique datasets within it.
+        """
+        # .expression acts as a column_property and should return a scalar
+        # first, get the distinct datasets within a history that are not purged
+        hda_to_dataset_join = join( HistoryDatasetAssociation, Dataset,
+            HistoryDatasetAssociation.table.c.dataset_id == Dataset.table.c.id )
+        distinct_datasets = (
+            select([
+                # use labels here to better accrss from the query above
+                HistoryDatasetAssociation.table.c.history_id.label( 'history_id' ),
+                Dataset.total_size.label( 'dataset_size' ),
+                Dataset.id.label( 'dataset_id' )
+            ])
+            .where( HistoryDatasetAssociation.table.c.purged != true() )
+            .where( Dataset.table.c.purged != true() )
+            .select_from( hda_to_dataset_join )
+            # TODO: slow (in general) but most probably here - index total_size for easier sorting/distinct?
+            .distinct()
+        )
+        # postgres needs an alias on FROM
+        distinct_datasets_alias = aliased( distinct_datasets, name="datasets" )
+        # then, bind as property of history using the cls.id
+        size_query = (
+            select([
+                func.coalesce( func.sum( distinct_datasets_alias.c.dataset_size ), 0 )
+            ])
+            .select_from( distinct_datasets_alias )
+            .where( distinct_datasets_alias.c.history_id == cls.id )
+        )
+        # label creates a scalar
+        return size_query.label( 'disk_size' )
+
+    @property
+    def disk_nice_size( self ):
+        """Returns human readable size of history on disk."""
+        return galaxy.util.nice_size( self.disk_size )
 
     @property
     def active_datasets_children_and_roles( self ):
@@ -1381,7 +1433,7 @@ class Quota( object, Dictifiable ):
         if self.bytes == -1:
             return "unlimited"
         else:
-            return nice_size( self.bytes )
+            return galaxy.util.nice_size( self.bytes )
 
 
 class DefaultQuotaAssociation( Quota, Dictifiable ):
@@ -1559,12 +1611,12 @@ class Dataset( object ):
         """Returns the size of the data on disk"""
         if self.file_size:
             if nice_size:
-                return galaxy.datatypes.data.nice_size( self.file_size )
+                return galaxy.util.nice_size( self.file_size )
             else:
                 return self.file_size
         else:
             if nice_size:
-                return galaxy.datatypes.data.nice_size( self._calculate_size() )
+                return galaxy.util.nice_size( self._calculate_size() )
             else:
                 return self._calculate_size()
 
@@ -1576,13 +1628,11 @@ class Dataset( object ):
     def get_total_size( self ):
         if self.total_size is not None:
             return self.total_size
-        if self.file_size:
-            # for backwards compatibility, set if unset
-            self.set_total_size()
-            db_session = object_session( self )
-            db_session.flush()
-            return self.total_size
-        return 0
+        # for backwards compatibility, set if unset
+        self.set_total_size()
+        db_session = object_session( self )
+        db_session.flush()
+        return self.total_size
 
     def set_total_size( self ):
         if self.file_size is None:
@@ -1755,7 +1805,7 @@ class DatasetInstance( object ):
     def get_size( self, nice_size=False ):
         """Returns the size of the data on disk"""
         if nice_size:
-            return galaxy.datatypes.data.nice_size( self.dataset.get_size() )
+            return galaxy.util.nice_size( self.dataset.get_size() )
         return self.dataset.get_size()
 
     def set_size( self ):
@@ -2325,7 +2375,7 @@ class HistoryDatasetAssociationSubset( object ):
 class Library( object, Dictifiable, HasName ):
     permitted_actions = get_permitted_actions( filter='LIBRARY' )
     dict_collection_visible_keys = ( 'id', 'name' )
-    dict_element_visible_keys = ( 'id', 'deleted', 'name', 'description', 'synopsis', 'root_folder_id' )
+    dict_element_visible_keys = ( 'id', 'deleted', 'name', 'description', 'synopsis', 'root_folder_id', 'create_time' )
 
     def __init__( self, name=None, description=None, synopsis=None, root_folder=None ):
         self.name = name or "Unnamed library"
@@ -2997,6 +3047,9 @@ class DatasetCollectionInstance( object, HasName ):
             id=self.id,
             name=self.name,
             collection_type=self.collection.collection_type,
+            populated=self.collection.populated,
+            populated_state=self.collection.populated_state,
+            populated_state_message=self.collection.populated_state_message,
             type="collection",  # contents type (distinguished from file or folder (in case of library))
         )
 
@@ -4201,6 +4254,8 @@ class Sample( object, Dictifiable ):
     def get_untransferred_dataset_size( self, filepath, scp_configs ):
         def print_ticks( d ):
             pass
+        if pexpect is None:
+            return PEXPECT_IMPORT_MESSAGE
         error_msg = 'Error encountered in determining the file size of %s on the external_service.' % filepath
         if not scp_configs['host'] or not scp_configs['user_name'] or not scp_configs['password']:
             return error_msg

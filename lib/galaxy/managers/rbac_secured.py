@@ -133,9 +133,12 @@ class DatasetRBACPermission( RBACPermission ):
     # TODO: list?
     def _delete( self, permissions, flush=True ):
         for permission in permissions:
-            self.session().delete( permission )
-            if flush:
-                self.session().flush()
+            if permission in self.session().new:
+                self.session().expunge( permission )
+            else:
+                self.session().delete( permission )
+        if flush:
+            self.session().flush()
 
     def _revoke_role( self, dataset, role, flush=True ):
         role_permissions = self.by_roles( dataset, [ role ] )
@@ -256,6 +259,6 @@ class AccessDatasetRBACPermission( DatasetRBACPermission ):
 
     def _role_is_permitted( self, dataset, role ):
         current_roles = self._roles( dataset )
-        return ( self._is_public_from_roles( current_roles ) or
-                 # if there's only one role and this is it, let em in
-                 ( ( len( current_roles ) == 1 ) and ( role == current_roles[0] ) ) )
+        return ( self._is_public_from_roles( current_roles )
+            # if there's only one role and this is it, let em in
+            or ( ( len( current_roles ) == 1 ) and ( role == current_roles[0] ) ) )
