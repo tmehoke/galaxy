@@ -21,6 +21,6 @@
         <param_modifier type="string" modifies="dataset_id">hda_ldda</param_modifier>
         <param type="dbkey">dbkey</param>
     </params>
-    <entry_point entry_point_type="mako">circster.mako</entry_point>
+    <template>circster.mako</template>
     <render_target>_top</render_target>
 </visualization>

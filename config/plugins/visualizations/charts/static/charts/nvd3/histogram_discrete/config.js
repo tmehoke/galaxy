@@ -1,7 +1,6 @@
-define(['plugin/charts/forms/default'], function(config_default) {
-return $.extend(true, {}, config_default, {
-    library     : 'NVD3',
-    tag         : 'svg',
+define(['plugin/charts/nvd3/common/config'], function(nvd3_config) {
+
+return $.extend(true, {}, nvd3_config, {
     title       : 'Discrete Histogram',
     category    : 'Data processing (requires \'charts\' tool from Toolshed)',
     execute     : 'histogramdiscrete',

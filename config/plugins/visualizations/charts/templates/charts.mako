@@ -16,8 +16,8 @@
                 'libs/bootstrap',
                 'libs/underscore',
                 'libs/backbone/backbone',
-                'libs/d3',
-                'libs/require')}
+                'libs/require',
+                'libs/d3')}
 
         ## shared css
         ${h.css( 'base' )}
