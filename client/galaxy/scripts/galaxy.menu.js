@@ -86,32 +86,33 @@ var GalaxyMenu = Backbone.Model.extend({
         //
         // APL Sample Tracking menu
         //
-        var tab_db = new mod_masthead.GalaxyMastheadTab({
-            id : "db",
-            title : "APL Sample Tracking",
-            content : "apl_tracking/sample"
+        var tab_apltracking = new Masthead.GalaxyMastheadTab({
+            id              : 'apltracking',
+            title           : 'APL Sample Tracking',
+            content         : 'apl_tracking/sample',
+            title_attribute : 'APL Sample Tracking'
         });
-        tab_db.add({
+        tab_apltracking.add({
             title : "Samples",
             content : "apl_tracking/sample"
         });
-        tab_db.add({
+        tab_apltracking.add({
             title : "Prophecy samples",
             content : "apl_tracking/prophecy"
         });
-        tab_db.add({
+        tab_apltracking.add({
             title : "Preps",
             content : "apl_tracking/prep"
         });
-        tab_db.add({
+        tab_apltracking.add({
             title : "Runs",
             content : "apl_tracking/run"
         });
-        tab_db.add({
+        tab_apltracking.add({
             title : "Primers",
             content : "apl_tracking/primer"
         });
-        this.masthead.append(tab_db);
+        this.masthead.append( tab_apltracking );
 
         //
         // Lab menu.
