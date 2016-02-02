@@ -2516,8 +2516,8 @@ from sqlalchemy import ForeignKeyConstraint, Sequence
 import datetime as dt
 
 model.APLOrganism.table = Table('apl_organism', metadata,
-	Column('id', Integer, Sequence('apl_organism_id_seq'), primary_key=True, nullable=False),
-	Column('taxid', Integer, nullable=False),
+	Column('id', Integer, Sequence('apl_organism_id_seq')),
+	Column('taxid', Integer, nullable=False, primary_key=True),
 	Column('name', String(255), nullable=False),
 	Column('dbkey', String(15), unique=True)
 	)
