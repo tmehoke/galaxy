@@ -20,6 +20,10 @@ th {
 	padding-top:5px;
 	padding-bottom:4px;
 }
+tr {
+	color: #777;
+	font-style: italic;
+}
 td {
 	border:1px solid black;
 	white-space:nowrap;
@@ -59,6 +63,7 @@ td {
 
 			## Draw the table containing all of the import data
 			<h2 style="padding-left:2%">Preps to be created</h2>
+			<h2 style="padding:2%; color:red;">(you must click submit before these preps will be added to the database)</h2>
 			<table class="review">
 			<thead>
 			%for attr in ['Prep ID', 'Sample ID', 'Name', 'Lab', 'Project', 'Prep Date', 'User', 'Notes']:
@@ -98,7 +103,6 @@ td {
 			<div class="form-row">
 				<input type="submit" name="cancel_prep_import_button" value="Cancel changes"/>
 				<input type="submit" name="review_prep_import_button" value="Submit"/>
-				<input type="submit" name="create_samplesheet_button" value="Submit & make sample sheet"/>
 			</div>
 		</form>
 	</div>

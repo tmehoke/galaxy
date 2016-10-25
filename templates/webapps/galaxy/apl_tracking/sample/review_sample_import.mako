@@ -20,6 +20,10 @@ th {
 	padding-top:5px;
 	padding-bottom:4px;
 }
+tr {
+	color: #777;
+	font-style: italic;
+}
 td {
 	border:1px solid black;
 	white-space:nowrap;
@@ -58,7 +62,8 @@ td {
 			%endfor
 
 			## Draw the table containing all of the import data
-			<h2 style="padding-left:2%">Samples to be created</h2>
+			<h2 style="padding-left:2%">Samples to be created:</h2>
+			<h2 style="padding:2%; color:red;">(you must click submit before these samples will be added to the database)</h2>
 			<table class="review">
 			<thead>
 			%for attr in ['Sample ID', 'Parent ID', 'Name', 'Species', 'Host', 'Sample Type', 'Date Created', 'User', 'Lab', 'Project', 'Experiment Type', 'Notes']:
