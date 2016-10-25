@@ -188,10 +188,18 @@ class SamplesGrid(grids.Grid):
 			return formatNullString(sample.name)
 	class SpeciesColumn(grids.TextColumn):
 		def get_value(self, trans, grid, sample):
-			return formatNullString(sample.species)
+			try:
+				species = trans.sa_session.query(trans.model.APLOrganism).get(sample.species).dbkey
+			except:
+				species = ''
+			return species
 	class HostColumn(grids.TextColumn):
 		def get_value(self, trans, grid, sample):
-			return formatNullString(sample.host)
+			try:
+				host = trans.sa_session.query(trans.model.APLOrganism).get(sample.host).dbkey
+			except:
+				host = ''
+			return host
 	class SampleTypeColumn(grids.TextColumn):
 		def get_value(self, trans, grid, sample):
 			return formatNullString(sample.sample_type)
@@ -515,10 +523,11 @@ class PrimerGrid(grids.Grid):
 			return formatNullString(primer.sequence)
 	class SpeciesColumn(grids.IntegerColumn):
 		def get_value(self, trans, grid, primer):
-			if isNoneOrEmptyOrBlankString(primer.species):
-				return ''
-			else:
-				return trans.sa_session.query(trans.model.APLOrganism).get(primer.species).name
+			try:
+				species = trans.sa_session.query(trans.model.APLOrganism).get(primer.species).dbkey
+			except:
+				species = ''
+			return species
 	class ScaleColumn(grids.TextColumn):
 		def get_value(self, trans, grid, primer):
 			return formatNullString(primer.scale)
@@ -719,7 +728,7 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 			if not isNoneOrEmptyOrBlankString(host):
 				try:
 					test_host = trans.sa_session.query(trans.model.APLOrganism)\
-								.filter(trans.model.APLOrganism.table.c.dbkey == host).first()
+								.filter(trans.model.APLOrganism.table.c.taxid == host).first()
 					if test_host == None:
 						message = 'Error: Host species is not present in the Organism table: %s' % host
 						status = 'error'
@@ -731,7 +740,7 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 			if not isNoneOrEmptyOrBlankString(species):
 				try:
 					test_species = trans.sa_session.query(trans.model.APLOrganism)\
-								.filter(trans.model.APLOrganism.table.c.dbkey == species).first()
+								.filter(trans.model.APLOrganism.table.c.taxid == species).first()
 					if test_species == None:
 						message = 'Error: This species is not present in the Organism table: %s' % species
 						status = 'error'
@@ -1145,12 +1154,11 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 								status = 'error'
 
 						# make sure species exists in Organism table
-						if not sample[2]:
-							species = None
-						else:
+						species = sample[2]
+						if species:
 							try:
 								test_species = trans.sa_session.query(trans.model.APLOrganism)\
-											.filter(trans.model.APLOrganism.table.c.dbkey == sample[2]).first()
+											.filter(trans.model.APLOrganism.table.c.taxid == sample[2]).first()
 								if test_sample == None:
 									message = 'Species does not exist in Organism table: %s' % sample[2]
 									status = 'error'
@@ -1159,12 +1167,11 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 								status = 'error'
 
 						# make sure host exists in Organism table
-						if not sample[3]:
-							host = None
-						else:
+						host = sample[3]
+						if host:
 							try:
 								test_host = trans.sa_session.query(trans.model.APLOrganism)\
-											.filter(trans.model.APLOrganism.table.c.dbkey == sample[3]).first()
+											.filter(trans.model.APLOrganism.table.c.taxid == sample[3]).first()
 								if test_sample == None:
 									message = 'Host species does not exist in Organism table: %s' % sample[3]
 									status = 'error'
@@ -1220,6 +1227,13 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 		last_value = int(kwd.get('last_value',''))
 		samples = literal_eval(kwd.get('samples',''))
 
+		# pull out parameters from mako template
+		parameters = []
+		parameters.append(dict(widget=HiddenField('last_value', last_value),
+					value=last_value))
+		parameters.append(dict(widget=HiddenField('samples', samples),
+					value=samples))
+
 		if kwd.get('review_sample_import_button', False):
 			# open connection to the galaxy database - I'd rather not do this, but I can't figure out how using SQLAlchemy
 			conn = pg.connect("host=odin port=5477 dbname=galaxy_database user=galaxy password=galaxy")
@@ -1236,23 +1250,21 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 				status = 'error'
 				last_value = current_value
 			else:
+				# add samples to database
 				message = self.__save_sample_import(trans, cntrller, **kwd)
-				return trans.response.send_redirect(web.url_for(controller='apl_tracking',
-															action='browse_samples',
-															message=message,
-															status='done'))
+
+				# proceed to confirmed page
+				return trans.fill_template('/apl_tracking/sample/confirmed_sample_import.mako',
+									cntrller=cntrller,
+									parameters=parameters,
+									message=message,
+									status=status)
 
 		if kwd.get('cancel_sample_import_button', False):
 			return trans.response.send_redirect(web.url_for(controller='apl_tracking',
 															action='browse_samples',
 															message='Import canceled',
 															status='done'))
-
-		parameters = []
-		parameters.append(dict(widget=HiddenField('last_value', last_value),
-					value=last_value))
-		parameters.append(dict(widget=HiddenField('samples', samples),
-					value=samples))
 
 		return trans.fill_template('/apl_tracking/sample/review_sample_import.mako',
 									cntrller=cntrller,
@@ -1334,6 +1346,25 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 
 
 	@web.expose
+	@web.require_login("Review recently-added samples")
+	def confirmed_sample_import(self, trans, cntrller, **kwd):
+#		is_admin = trans.user_is_admin()
+		message = kwd.get('message', '')
+		status = kwd.get('status', 'done')
+
+		if kwd.get('confirmed_sample_import_button', False):
+			return trans.response.send_redirect(web.url_for(controller='apl_tracking',
+														action='browse_samples',
+														message=message,
+														status='done'))
+
+		return trans.fill_template('/apl_tracking/sample/confirmed_sample_import.mako',
+									cntrller=cntrller,
+									message=message,
+									status=status)
+
+
+	@web.expose
 	@web.require_login("Edit a group of samples")
 	def edit_sample_group(self, trans, cntrller, **kwd):
 #		is_admin = trans.user_is_admin()
@@ -1381,7 +1412,7 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 				if not isNoneOrEmptyOrBlankString(new_value):
 					try:
 						test_host = trans.sa_session.query(trans.model.APLOrganism)\
-									.filter(trans.model.APLOrganism.table.c.dbkey == new_value).first()
+									.filter(trans.model.APLOrganism.table.c.taxid == new_value).first()
 						if test_host == None:
 							message = 'Error: Host species is not present in the Organism table: %s' % new_value
 							status = 'error'
@@ -1394,7 +1425,7 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 				if not isNoneOrEmptyOrBlankString(new_value):
 					try:
 						test_species = trans.sa_session.query(trans.model.APLOrganism)\
-									.filter(trans.model.APLOrganism.table.c.dbkey == new_value).first()
+									.filter(trans.model.APLOrganism.table.c.taxid == new_value).first()
 						if test_species == None:
 							message = 'Error: This species is not present in the Organism table: %s' % new_value
 							status = 'error'
@@ -3541,39 +3572,15 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 				status = 'error'
 				last_value = current_value
 			else:
+				# add samples to database
 				message = self.__save_prep_import(trans, cntrller, **kwd)
-				return trans.response.send_redirect(web.url_for(controller='apl_tracking',
-															action='browse_preps',
-															message=message,
-															status='done'))
 
-		if kwd.get('create_samplesheet_button', False):
-			# open connection to the galaxy database - I'd rather not do this, but I can't figure out how using SQLAlchemy
-			conn = pg.connect("host=odin port=5477 dbname=galaxy_database user=galaxy password=galaxy")
-			cur = conn.cursor()
-			cur.execute('SELECT last_value FROM apl_prep_id_seq;')
-			conn.commit()
-			current_value = int(cur.fetchone()[0])
-			cur.close()
-			conn.close()
-
-			# check to make sure last_value is still equal to the current_value
-			if current_value != last_value:
-				message = 'The database has been modified since you began this edit.  Prep IDs have been updated.  Please try again.'
-				status = 'error'
-				last_value = current_value
-			else:
-				message = self.__save_prep_import(trans, cntrller, **kwd)
-				widgets = self.__create_default_samplesheet(trans, cntrller, **kwd)
-				return trans.fill_template('/apl_tracking/preps/review_samplesheet.mako',
-											cntrller=cntrller,
-											message=message,
-											widgets=widgets,
-											status='done')
-			return trans.response.send_redirect(web.url_for(controller='apl_tracking',
-															action='browse_preps',
-															message=message,
-															status='done'))
+				# proceed to confirmed page
+				return trans.fill_template('/apl_tracking/sample/confirmed_prep_import.mako',
+									cntrller=cntrller,
+									parameters=parameters,
+									message=message,
+									status=status)
 
 		if kwd.get('cancel_prep_import_button', False):
 			return trans.response.send_redirect(web.url_for(controller='apl_tracking',
@@ -3655,6 +3662,48 @@ class APLTrackingCommon(BaseUIController, UsesFormDefinitionsMixin):
 															action='browse_preps',
 															status='error',
 															message=message))
+
+
+	@web.expose
+	@web.require_login("Review recently-added preps")
+	def confirmed_prep_import(self, trans, cntrller, **kwd):
+#		is_admin = trans.user_is_admin()
+		message = kwd.get('message', '')
+		status = kwd.get('status', 'done')
+
+		if kwd.get('confirmed_prep_import_button', False):
+			return trans.response.send_redirect(web.url_for(controller='apl_tracking',
+														action='browse_preps',
+														message=message,
+														status='done'))
+
+		if kwd.get('create_samplesheet_button', False):
+			# open connection to the galaxy database - I'd rather not do this, but I can't figure out how using SQLAlchemy
+			conn = pg.connect("host=odin port=5477 dbname=galaxy_database user=galaxy password=galaxy")
+			cur = conn.cursor()
+			cur.execute('SELECT last_value FROM apl_prep_id_seq;')
+			conn.commit()
+			current_value = int(cur.fetchone()[0])
+			cur.close()
+			conn.close()
+
+			# check to make sure last_value is still equal to the current_value
+			if current_value != last_value:
+				message = 'The database has been modified since you began this edit.  Prep IDs have been updated.  Please try again.'
+				status = 'error'
+				last_value = current_value
+			else:
+				widgets = self.__create_default_samplesheet(trans, cntrller, **kwd)
+				return trans.fill_template('/apl_tracking/preps/review_samplesheet.mako',
+											cntrller=cntrller,
+											message=message,
+											widgets=widgets,
+											status='done')
+
+		return trans.fill_template('/apl_tracking/sample/confirmed_prep_import.mako',
+									cntrller=cntrller,
+									message=message,
+									status=status)
 
 
 	@web.expose
