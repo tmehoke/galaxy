@@ -15,7 +15,8 @@ import zipfile
 
 from galaxy import util
 # need to import model before sniff to resolve a circular import dependency
-import galaxy.model  # noqa
+# noqa
+import galaxy.model
 from galaxy.datatypes import sniff
 from galaxy.datatypes.binary import Binary
 from galaxy.datatypes.checkers import check_binary, check_bz2, check_gzip, check_html, check_image, check_zip
