@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 # code is same as ~/tools/stats/wiggle_to_simple.py
-
 """
 Read a wiggle track and print out a series of lines containing
 "chrom position score". Ignores track lines, handles bed, variableStep
 and fixedStep wiggle lines.
 """
+from __future__ import print_function
+
 import sys
 
-from galaxy import eggs
-eggs.require( "bx-python" )
 import bx.wiggle
 
-from galaxy.tools.exception_handling import UCSCOutWrapper, UCSCLimitException
+from galaxy.util.ucsc import UCSCOutWrapper, UCSCLimitException
 
 
 def stop_err( msg ):
@@ -36,7 +35,7 @@ def main():
             out_file.write( "%s\n" % "\t".join( map( str, fields ) ) )
     except UCSCLimitException:
         # Wiggle data was truncated, at the very least need to warn the user.
-        print 'Encountered message from UCSC: "Reached output limit of 100000 data values", so be aware your data was truncated.'
+        print('Encountered message from UCSC: "Reached output limit of 100000 data values", so be aware your data was truncated.')
     except ValueError as e:
         in_file.close()
         out_file.close()

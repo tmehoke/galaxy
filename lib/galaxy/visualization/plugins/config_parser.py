@@ -1,3 +1,5 @@
+from six import string_types
+
 import galaxy.model
 from galaxy import util
 
@@ -217,10 +219,8 @@ class DataSourceParser( object ):
         returned[ 'model_class' ] = model_class
 
         # tests (optional, 0 or more) - data for boolean test: 'is the visualization usable by this object?'
-        tests = self.parse_tests( xml_tree.findall( 'test' ) )
         # when no tests are given, default to isinstance( object, model_class )
-        if tests:
-            returned[ 'tests' ] = tests
+        returned[ 'tests' ] = self.parse_tests( xml_tree.findall( 'test' ) )
 
         # to_params (optional, 0 or more) - tells the registry to set certain params based on the model_clas, tests
         returned[ 'to_params' ] = {}
@@ -283,7 +283,7 @@ class DataSourceParser( object ):
             test_type = test_elem.get( 'type', 'eq' )
             test_result = test_elem.text.strip() if test_elem.text else None
             if not test_type or not test_result:
-                log.warn( 'Skipping test. Needs both type attribute and text node to be parsed: ' +
+                log.warning( 'Skipping test. Needs both type attribute and text node to be parsed: ' +
                           '%s, %s' % ( test_type, test_elem.text ) )
                 continue
             test_result = test_result.strip()
@@ -292,7 +292,7 @@ class DataSourceParser( object ):
             # TODO: too dangerous - constrain these to some allowed list
             # TODO: does this err if no test_attr - it should...
             test_attr = test_elem.get( 'test_attr' )
-            test_attr = test_attr.split( self.ATTRIBUTE_SPLIT_CHAR ) if isinstance( test_attr, str ) else []
+            test_attr = test_attr.split( self.ATTRIBUTE_SPLIT_CHAR ) if isinstance( test_attr, string_types ) else []
             # log.debug( 'test_type: %s, test_attr: %s, test_result: %s', test_type, test_attr, test_result )
 
             # build a lambda function that gets the desired attribute to test

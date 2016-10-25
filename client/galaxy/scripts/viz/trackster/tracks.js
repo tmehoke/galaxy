@@ -1,7 +1,17 @@
-define( ["libs/underscore", "viz/visualization", "viz/viz_views", "viz/trackster/util",
-         "viz/trackster/slotting", "viz/trackster/painters", "viz/trackster/filters",
-         "mvc/data", "mvc/tools", "utils/config" ],
-         function(_, visualization, viz_views, util, slotting, painters, filters_mod, data, tools_mod, config_mod) {
+define([
+    "libs/underscore",
+    "viz/visualization",
+    "viz/viz_views",
+    "viz/trackster/util",
+    "viz/trackster/slotting",
+    "viz/trackster/painters",
+    "viz/trackster/filters",
+    "mvc/dataset/data",
+    "mvc/tool/tools",
+    "utils/config",
+    "ui/editable-text",
+], function(_, visualization, viz_views, util, slotting, painters, filters_mod, data, tools_mod, config_mod) {
+
 
 var extend = _.extend;
 
@@ -879,7 +889,7 @@ var TracksterView = Backbone.View.extend({
         // Introduction div shown when there are no tracks.
         this.intro_div = $("<div/>").addClass("intro").appendTo(this.viewport_container);
         var add_tracks_button = $("<div/>").text("Add Datasets to Visualization").addClass("action-button").appendTo(this.intro_div).click(function () {
-            visualization.select_datasets(galaxy_config.root + "visualization/list_current_history_datasets", galaxy_config.root + "api/datasets", { 'f-dbkey': view.dbkey }, function(tracks) {
+            visualization.select_datasets(Galaxy.root + "visualization/list_current_history_datasets", Galaxy.root + "api/datasets", { 'f-dbkey': view.dbkey }, function(tracks) {
                 _.each(tracks, function(track) {
                     view.add_drawable( object_from_template(track, view, view) );
                 });
@@ -1154,8 +1164,8 @@ extend( TracksterView.prototype, DrawableCollection.prototype, {
     },
 
     update_location: function(low, high) {
-        this.location_span.text( commatize(low) + ' - ' + commatize(high) );
-        this.nav_input.val( this.chrom + ':' + commatize(low) + '-' + commatize(high) );
+        this.location_span.text( util.commatize(low) + ' - ' + util.commatize(high) );
+        this.nav_input.val( this.chrom + ':' + util.commatize(low) + '-' + util.commatize(high) );
 
         // Update location. Only update when there is a valid chrom; when loading vis, there may
         // not be a valid chrom.
@@ -1176,7 +1186,7 @@ extend( TracksterView.prototype, DrawableCollection.prototype, {
             view = this,
             chrom_data = $.Deferred();
         $.ajax({
-            url: galaxy_config.root + "api/genomes/" + this.dbkey,
+            url: Galaxy.root + "api/genomes/" + this.dbkey,
             data: url_parms,
             dataType: "json",
             success: function (result) {
@@ -1825,7 +1835,7 @@ var TracksterToolView = Backbone.View.extend({
         url_params.inputs = this.model.get_inputs_dict();
         var ss_deferred = new util.ServerStateDeferred({
             ajax_settings: {
-                url: galaxy_config.root + "api/tools",
+                url: Galaxy.root + "api/tools",
                 data: JSON.stringify(url_params),
                 dataType: "json",
                 contentType: 'application/json',
@@ -2247,7 +2257,7 @@ extend(Track.prototype, Drawable.prototype, {
 
                         // Go to visualization.
                         window.location.href =
-                            galaxy_config.root + "visualization/sweepster" + "?" +
+                            Galaxy.root + "visualization/sweepster" + "?" +
                             $.param({
                                 dataset_id: track.dataset.id,
                                 hda_ldda: track.dataset.get('hda_ldda'),
@@ -2497,7 +2507,7 @@ extend(Track.prototype, Drawable.prototype, {
             var data = result.data;
 
             // Tracks may not have stat data either because there is no data or data is not yet ready.
-            if (data !== undefined && data.min !== undefined && data.max !== undefined) {
+            if (data && data.min !== undefined && data.max !== undefined) {
                 // Compute default minimum and maximum values
                 var min_value = data.min,
                     max_value = data.max;
@@ -2818,7 +2828,8 @@ extend(TiledTrack.prototype, Drawable.prototype, Track.prototype, {
             css_class = (type === 'max' ? 'top' : 'bottom'),
             text = (type === 'max' ? 'max' : 'min'),
             pref_name = (type === 'max' ? 'max_value' : 'min_value'),
-            label = this.container_div.find(".yaxislabel." + css_class);
+            label = this.container_div.find(".yaxislabel." + css_class),
+            value = round( track.config.get_value(pref_name), 1 );
 
         // Default action for on_change is to redraw track.
         on_change = on_change || function() {
@@ -2827,15 +2838,15 @@ extend(TiledTrack.prototype, Drawable.prototype, Track.prototype, {
 
         if (label.length !== 0) {
             // Label already exists, so update value.
-            label.text(track.config.get_value(pref_name));
+            label.text(value);
         }
         else {
             // Add label.
-            label = $("<div/>").text(track.config.get_value(pref_name)).make_text_editable({
+            label = $("<div/>").text(value).make_text_editable({
                 num_cols: 12,
                 on_finish: function(new_val) {
                     $(".tooltip").remove();
-                    track.config.set_value(pref_name, new_val);
+                    track.config.set_value(pref_name, round( new_val, 1 ) );
                     on_change();
                 },
                 help_text: "Set " + text + " value"
@@ -3058,6 +3069,16 @@ extend(TiledTrack.prototype, Drawable.prototype, Track.prototype, {
      * Draw line (bigwig) data onto tile.
      */
     _draw_line_track_tile: function(result, ctx, mode, region, w_scale) {
+        // Set min/max if they are not already set.
+        // FIXME: checking for different null/undefined/0 is messy; it would be nice to
+        // standardize this.
+        if ( [undefined, null].indexOf(this.config.get_value("min_value")) !== -1 ) {
+            this.config.set_value("min_value", 0);
+        }
+        if ( [undefined, null, 0].indexOf(this.config.get_value("max_value")) !== -1 ) {
+            this.config.set_value("max_value", _.max( _.map(result.data, function(d) { return d[1]; }) ) || 0);
+        }
+        
         var canvas = ctx.canvas,
             painter = new painters.LinePainter(result.data, region.get('start'), region.get('end'), this.config.to_key_value_dict(), mode);
         painter.draw(ctx, canvas.width, canvas.height, w_scale);
@@ -3249,7 +3270,7 @@ extend(LabelTrack.prototype, Track.prototype, {
             new_div = $("<div/>").addClass('label-container');
         while ( position < view.high ) {
             var screenPosition = Math.floor( ( position - view.low ) / range * width );
-            new_div.append( $("<div/>").addClass('label').text(commatize( position )).css( {
+            new_div.append( $("<div/>").addClass('pos-label').text(util.commatize( position )).css( {
                 left: screenPosition
             }));
             position += tickDistance;
@@ -3496,7 +3517,7 @@ var ReferenceTrack = function (view) {
     // Use offset to ensure that bases at tile edges are drawn.
     this.left_offset = view.canvas_manager.char_width_px;
     this.container_div.addClass("reference-track");
-    this.data_url = galaxy_config.root + "api/genomes/" + this.view.dbkey;
+    this.data_url = Galaxy.root + "api/genomes/" + this.view.dbkey;
     this.data_url_extra_params = {reference: true};
     this.data_manager = new visualization.GenomeReferenceDataManager({
         data_url: this.data_url,
@@ -3700,8 +3721,8 @@ extend(FeatureTrack.prototype, Drawable.prototype, TiledTrack.prototype, {
         { key: 'label_color', label: 'Label color', type: 'color', default_value: 'black' },
         { key: 'show_counts', label: 'Show summary counts', type: 'bool', default_value: true,
           help: 'Show the number of items in each bin when drawing summary histogram' },
-        { key: 'min_value', label: 'Histogram minimum', type: 'float', default_value: null, help: 'clear value to set automatically' },
-        { key: 'max_value', label: 'Histogram maximum', type: 'float', default_value: null, help: 'clear value to set automatically' },
+        { key: 'min_value', label: 'Histogram minimum', type: 'float', default_value: undefined, help: 'clear value to set automatically' },
+        { key: 'max_value', label: 'Histogram maximum', type: 'float', default_value: undefined, help: 'clear value to set automatically' },
         { key: 'connector_style', label: 'Connector style', type: 'select', default_value: 'fishbones',
             options: [ { label: 'Line with arrows', value: 'fishbone' }, { label: 'Arcs', value: 'arcs' } ] },
         { key: 'mode', type: 'string', default_value: this.mode, hidden: true },
@@ -4194,8 +4215,8 @@ extend(ReadTrack.prototype, Drawable.prototype, TiledTrack.prototype, FeatureTra
         { key: 'show_differences', label: 'Show differences only', type: 'bool', default_value: true },
         { key: 'show_counts', label: 'Show summary counts', type: 'bool', default_value: true },
         { key: 'mode', type: 'string', default_value: this.mode, hidden: true },
-        { key: 'min_value', label: 'Histogram minimum', type: 'float', default_value: null, help: 'clear value to set automatically' },
-        { key: 'max_value', label: 'Histogram maximum', type: 'float', default_value: null, help: 'clear value to set automatically' },
+        { key: 'min_value', label: 'Histogram minimum', type: 'float', default_value: undefined, help: 'clear value to set automatically' },
+        { key: 'max_value', label: 'Histogram maximum', type: 'float', default_value: undefined, help: 'clear value to set automatically' },
         { key: 'height', type: 'int', default_value: 0, hidden: true}
     ] ),
 

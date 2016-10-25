@@ -3,7 +3,7 @@
 check_galaxy can be run by hand, although it is meant to run from cron
 via the check_galaxy.sh script in Galaxy's cron/ directory.
 """
-
+from __future__ import print_function
 import filecmp
 import formatter
 import getopt
@@ -14,6 +14,9 @@ import sys
 import tempfile
 import time
 
+import twill
+import twill.commands as tc
+
 # options
 if "DEBUG" in os.environ:
     debug = os.environ["DEBUG"]
@@ -23,23 +26,23 @@ scripts_dir = os.path.abspath( os.path.dirname( sys.argv[0] ) )
 test_data_dir = os.path.join( scripts_dir, os.pardir, "test-data" )
 # what tools to run - not so pretty
 tools = {
-    "gops_intersect_1" :
+    "gops_intersect_1":
     [
         {
-            "inputs" :
+            "inputs":
             (
                 os.path.join( test_data_dir, "1.bed" ),
                 os.path.join( test_data_dir, "2.bed" )
             )
         },
-        { "check_file" : os.path.join( test_data_dir, "gops_intersect_out.bed" ) },
+        { "check_file": os.path.join( test_data_dir, "gops_intersect_out.bed" ) },
         {
-            "tool_run_options" :
+            "tool_run_options":
             {
-                "input1" : "1.bed",
-                "input2" : "2.bed",
-                "min" : "1",
-                "returntype" : ""
+                "input1": "1.bed",
+                "input2": "2.bed",
+                "min": "1",
+                "returntype": ""
             }
         }
     ]
@@ -52,15 +55,15 @@ def usage():
 
 try:
     opts, args = getopt.getopt( sys.argv[1:], 'n' )
-except getopt.GetoptError, e:
-    print str(e)
+except getopt.GetoptError as e:
+    print(str(e))
     usage()
 if len( args ) < 1:
     usage()
 server = args[0]
 if server.endswith(".g2.bx.psu.edu"):
     if debug:
-        print "Checking a PSU Galaxy server, using maint file"
+        print("Checking a PSU Galaxy server, using maint file")
     maint = "/errordocument/502/%s/maint" % args[0].split('.', 1)[0]
 else:
     maint = None
@@ -68,7 +71,7 @@ new_history = False
 for o, a in opts:
     if o == "-n":
         if debug:
-            print "Specified -n, will create a new history"
+            print("Specified -n, will create a new history")
         new_history = True
     else:
         usage()
@@ -76,7 +79,7 @@ for o, a in opts:
 # state information
 var_dir = os.path.join( os.path.expanduser('~'), ".check_galaxy", server )
 if not os.access( var_dir, os.F_OK ):
-    os.makedirs( var_dir, 0700 )
+    os.makedirs( var_dir, 0o700 )
 
 # get user/pass
 login_file = os.path.join( var_dir, "login" )
@@ -93,14 +96,6 @@ check_galaxy@example.com password
 If the user does not exist, check_galaxy will create it for you.""" % login_file
     sys.exit(message)
 ( username, password ) = f.readline().split()
-
-# find/import twill
-lib_dir = os.path.join( scripts_dir, os.pardir, "lib" )
-sys.path.insert( 1, lib_dir )
-from galaxy import eggs
-eggs.require( "twill" )
-import twill
-import twill.commands as tc
 
 # default timeout for twill browser is never
 socket.setdefaulttimeout(300)
@@ -143,7 +138,7 @@ class Browser:
         p = didParser()
         p.feed(tc.browser.get_html())
         if len(p.dids) > 0:
-            print "Remaining datasets ids:", " ".join( p.dids )
+            print("Remaining datasets ids:", " ".join( p.dids ))
             raise Exception("History still contains datasets after attempting to delete them")
         if new_history:
             self.get("/history/delete_current")
@@ -157,7 +152,7 @@ class Browser:
             tc.get_browser()._browser.set_handle_redirect(True)
             dprint( "%s is returning redirect (302)" % url )
             return(True)
-        except twill.errors.TwillAssertionError, e:
+        except twill.errors.TwillAssertionError as e:
             tc.get_browser()._browser.set_handle_redirect(True)
             dprint( "%s is not returning redirect (302): %s" % (url, e) )
             code = tc.browser.get_code()
@@ -369,7 +364,7 @@ class loggedinParser(htmllib.HTMLParser):
 
 def dprint(str):
     if debug:
-        print str
+        print(str)
 
 # do stuff here
 if __name__ == "__main__":
@@ -385,7 +380,7 @@ if __name__ == "__main__":
         dprint("not logged in... logging in")
         b.login(username, password)
 
-    for tool, params in tools.iteritems():
+    for tool, params in tools.items():
 
         check_file = ""
 

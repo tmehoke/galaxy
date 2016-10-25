@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # Dan Blankenberg
+from __future__ import print_function
+
 import sys
 
-from galaxy import eggs
-eggs.require( "bx-python" )
 import bx.align.maf
 
 from galaxy.tools.util import maf_utilities
@@ -28,7 +28,7 @@ def __main__():
             out.write( "%s\n" % c.text )
         out.write( "\n" )
     out.close()
-    print "%i MAF blocks converted to FASTA." % ( count )
+    print("%i MAF blocks converted to FASTA." % ( count ))
 
 
 if __name__ == "__main__":

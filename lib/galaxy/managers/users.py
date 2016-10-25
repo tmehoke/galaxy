@@ -2,8 +2,6 @@
 Manager and Serializer for Users.
 """
 
-import pkg_resources
-pkg_resources.require( "SQLAlchemy >= 0.4" )
 import sqlalchemy
 
 from galaxy import model
@@ -13,6 +11,7 @@ from galaxy import util
 from galaxy.managers import base
 from galaxy.managers import deletable
 from galaxy.managers import api_keys
+from galaxy.security import validate_user_input
 
 import logging
 log = logging.getLogger( __name__ )
@@ -28,7 +27,6 @@ class UserManager( base.ModelManager, deletable.PurgableManagerMixin ):
     # TODO: incorp BaseAPIController.validate_in_users_and_groups
     # TODO: incorp CreatesUsersMixin
     # TODO: incorp CreatesApiKeysMixin
-    # TODO: incorporate security/validate_user_input.py
     # TODO: incorporate UsesFormDefinitionsMixin?
 
     def create( self, webapp_name=None, **kwargs ):
@@ -54,7 +52,7 @@ class UserManager( base.ModelManager, deletable.PurgableManagerMixin ):
         try:
             self.session().flush()
             # TODO:?? flush needed for permissions below? If not, make optional
-        except sqlalchemy.exc.IntegrityError, db_err:
+        except sqlalchemy.exc.IntegrityError as db_err:
             raise exceptions.Conflict( db_err.message )
 
         # can throw an sqlalx.IntegrityError if username not unique
@@ -65,6 +63,11 @@ class UserManager( base.ModelManager, deletable.PurgableManagerMixin ):
             permissions = self.app.config.new_user_dataset_access_role_default_private
             self.app.security_agent.user_set_default_permissions( user, default_access_private=permissions )
         return user
+
+    def delete(self, user):
+        user.deleted = True
+        self.session().add(user)
+        self.session().flush()
 
     def _error_on_duplicate_email( self, email ):
         """
@@ -184,6 +187,10 @@ class UserManager( base.ModelManager, deletable.PurgableManagerMixin ):
         return self.create_api_key( self, user )
 
     # ---- preferences
+    def preferences( self, user ):
+        log.warn(dict( (key, value) for key, value in user.preferences.items() ))
+        return dict( (key, value) for key, value in user.preferences.items() )
+
     # ---- roles and permissions
     def private_role( self, user ):
         return self.app.security_agent.get_private_user_role( user )
@@ -232,17 +239,18 @@ class UserManager( base.ModelManager, deletable.PurgableManagerMixin ):
         if self.is_anonymous( user ):
             return False
         request_types = self.app.security_agent.get_accessible_request_types( trans, user )
-        return ( user.requests or request_types )
+        return bool( user.requests or request_types )
 
 
 class UserSerializer( base.ModelSerializer, deletable.PurgableSerializerMixin ):
+    model_manager_class = UserManager
 
     def __init__( self, app ):
         """
         Convert a User and associated data to a dictionary representation.
         """
         super( UserSerializer, self ).__init__( app )
-        self.user_manager = UserManager( app )
+        self.user_manager = self.manager
 
         self.default_view = 'summary'
         self.add_view( 'summary', [
@@ -251,16 +259,15 @@ class UserSerializer( base.ModelSerializer, deletable.PurgableSerializerMixin ):
         self.add_view( 'detailed', [
             # 'update_time',
             # 'create_time',
-
+            'is_admin',
             'total_disk_usage',
             'nice_total_disk_usage',
             'quota_percent',
-
-            # 'deleted',
-            # 'purged',
+            'deleted',
+            'purged',
             # 'active',
 
-            # 'preferences',
+            'preferences',
             #  all tags
             'tags_used',
             # all annotations
@@ -277,16 +284,40 @@ class UserSerializer( base.ModelSerializer, deletable.PurgableSerializerMixin ):
             'update_time'   : self.serialize_date,
             'is_admin'      : lambda i, k, **c: self.user_manager.is_admin( i ),
 
+            'preferences'   : lambda i, k, **c: self.user_manager.preferences( i ),
+
             'total_disk_usage' : lambda i, k, **c: float( i.total_disk_usage ),
             'quota_percent' : lambda i, k, **c: self.user_manager.quota( i ),
 
             'tags_used'     : lambda i, k, **c: self.user_manager.tags_used( i ),
-            # TODO: 'has_requests' is more apt
-            'requests'      : lambda i, k, trans=None, **c: self.user_manager.has_requests( i, trans )
+            'has_requests'  : lambda i, k, trans=None, **c: self.user_manager.has_requests( i, trans )
         })
 
 
+class UserDeserializer( base.ModelDeserializer ):
+    """
+    Service object for validating and deserializing dictionaries that
+    update/alter users.
+    """
+    model_manager_class = UserManager
+
+    def add_deserializers( self ):
+        super( UserDeserializer, self ).add_deserializers()
+        self.deserializers.update({
+            'username'  : self.deserialize_username,
+        })
+
+    def deserialize_username( self, item, key, username, trans=None, **context ):
+        # TODO: validate_user_input requires trans and should(?) raise exceptions
+        # move validation to UserValidator and use self.app, exceptions instead
+        validation_error = validate_user_input.validate_publicname( trans, username, user=item )
+        if validation_error:
+            raise base.ModelDeserializingError( validation_error )
+        return self.default_deserializer( item, key, username, trans=trans, **context )
+
+
 class CurrentUserSerializer( UserSerializer ):
+    model_manager_class = UserManager
 
     def serialize( self, user, keys, **kwargs ):
         """
@@ -300,12 +331,13 @@ class CurrentUserSerializer( UserSerializer ):
     def serialize_current_anonymous_user( self, user, keys, trans=None, **kwargs ):
         # use the current history if any to get usage stats for trans' anonymous user
         # TODO: might be better as sep. Serializer class
-        history = trans.history
-        if not history:
-            raise exceptions.AuthenticationRequired( 'No history for anonymous user usage stats' )
+        usage = 0
+        percent = None
 
-        usage = self.app.quota_agent.get_usage( trans, history=trans.history )
-        percent = self.app.quota_agent.get_percent( trans=trans, usage=usage )
+        history = trans.history
+        if history:
+            usage = self.app.quota_agent.get_usage( trans, history=trans.history )
+            percent = self.app.quota_agent.get_percent( trans=trans, usage=usage )
 
         # a very small subset of keys available
         values = {
@@ -322,6 +354,7 @@ class CurrentUserSerializer( UserSerializer ):
 
 
 class AdminUserFilterParser( base.ModelFilterParser, deletable.PurgableFiltersMixin ):
+    model_manager_class = UserManager
     model_class = model.User
 
     def _add_parsers( self ):
